@@ -12,11 +12,14 @@ import {
   GraphQLScalarType,
   GraphQLSchema,
   GraphQLString,
-  Kind
+  Kind,
+  parse,
+  validate
 } from 'graphql';
 import { User } from "@prisma/client";
 import { UUIDType } from './types/uuid.js';
 import { MemberTypeId } from '../member-types/schemas.js';
+import depthLimit from 'graphql-depth-limit';
 
 const plugin: FastifyPluginAsyncTypebox = async (fastify) => {
   const { prisma } = fastify;
@@ -457,6 +460,16 @@ const plugin: FastifyPluginAsyncTypebox = async (fastify) => {
       response: {
         200: gqlResponseSchema,
       },
+    },
+    preHandler: async (req, reply) => {
+      const { query } = req.body;
+      const errors = validate(executableSchema, parse(query), [depthLimit(5)]);
+
+      if (errors.length > 0) {
+        await reply.send({
+          errors: errors.map((error) => ({ message: error.message })),
+        });
+      }
     },
     async handler(req) {
       const { query, variables } = req.body;
