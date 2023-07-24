@@ -14,6 +14,7 @@ import {
   GraphQLString,
   Kind
 } from 'graphql';
+import { User } from "@prisma/client";
 import { UUIDType } from './types/uuid.js';
 import { MemberTypeId } from '../member-types/schemas.js';
 
@@ -57,29 +58,32 @@ const plugin: FastifyPluginAsyncTypebox = async (fastify) => {
       profile: { type: Profile },
       posts: { type: new GraphQLList(Post) },
       userSubscribedTo: {
-        type: new GraphQLList(SubscribersOnAuthors),
+        type: new GraphQLList(User),
+        resolve: async (source: User, _, { prisma }) => {
+          return await prisma.user.findMany({
+            where: {
+              subscribedToUser: {
+                some: {
+                  subscriberId: source.id,
+                },
+              },
+            },
+          });
+        },
       },
       subscribedToUser: {
-        type: new GraphQLList(SubscribersOnAuthors),
-      },
-    }),
-  });
-
-  const SubscribersOnAuthors = new GraphQLObjectType({
-    name: 'SubscribersOnAuthors',
-    fields: () => ({
-      id: { type: UUIDType },
-      subscriber: {
-        type: User,
-      },
-      author: {
-        type: User,
-      },
-      userSubscribedTo: {
-        type: new GraphQLList(SubscribersOnAuthors),
-      },
-      subscribedToUser: {
-        type: new GraphQLList(SubscribersOnAuthors),
+        type: new GraphQLList(User),
+        resolve: async (source: User, _, { prisma }) => {
+          return await prisma.user.findMany({
+            where: {
+              userSubscribedTo: {
+                some: {
+                  authorId: source.id,
+                },
+              },
+            },
+          });
+        },
       },
     }),
   });
@@ -199,7 +203,7 @@ const plugin: FastifyPluginAsyncTypebox = async (fastify) => {
         });
       },
       user: async (_, { id }) => {
-        const entry = await prisma.user.findUnique({
+        return await prisma.user.findUnique({
           where: { id },
           include: {
             profile: {
@@ -208,52 +212,10 @@ const plugin: FastifyPluginAsyncTypebox = async (fastify) => {
               },
             },
             posts: true,
-            userSubscribedTo: {
-              include: {
-                author: {
-                  include: {
-                    subscribedToUser: {
-                      include: {
-                        subscriber: true
-                      }
-                    }
-                  }
-                }
-              }
-            },
-            subscribedToUser: {
-              include: {
-                subscriber: {
-                  include: {
-                    userSubscribedTo: {
-                      include: {
-                        author: true
-                      }
-                    }
-                  }
-                }
-              }
-            },
+            userSubscribedTo: true,
+            subscribedToUser: true,
           },
         });
-
-        const transformedEntry = {
-          ...entry,
-          userSubscribedTo: entry?.userSubscribedTo.map((item) => ({
-            id: item.author.id,
-            subscribedToUser: item.author.subscribedToUser.map((it) => ({
-              id: it.subscriber.id
-            }))
-          })),
-          subscribedToUser: entry?.subscribedToUser.map((item) => ({
-            id: item.subscriber.id,
-            userSubscribedTo: item.subscriber.userSubscribedTo.map((it) => ({
-              id: it.author.id
-            }))
-          })),
-        };
-
-        return entry ? transformedEntry : entry;
       },
       profile: async (_, { id }) => {
         return prisma.profile.findUnique({
@@ -468,7 +430,7 @@ const plugin: FastifyPluginAsyncTypebox = async (fastify) => {
           resolve: resolvers.Mutation.changeUser,
         },
         subscribeTo: {
-          type: SubscribersOnAuthors,
+          type: User,
           args: {
             userId: { type: UUIDType },
             authorId: { type: UUIDType },
