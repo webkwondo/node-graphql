@@ -5,11 +5,14 @@ import {
   GraphQLBoolean,
   GraphQLEnumType,
   GraphQLFloat,
+  GraphQLInputObjectType,
   GraphQLInt,
   GraphQLList,
   GraphQLObjectType,
+  GraphQLScalarType,
   GraphQLSchema,
-  GraphQLString
+  GraphQLString,
+  Kind
 } from 'graphql';
 import { UUIDType } from './types/uuid.js';
 import { MemberTypeId } from '../member-types/schemas.js';
@@ -90,6 +93,51 @@ const plugin: FastifyPluginAsyncTypebox = async (fastify) => {
       user: { type: User },
       memberType: { type: MemberType },
     }),
+  });
+
+  const CreatePostInput = new GraphQLInputObjectType({
+    name: 'CreatePostInput',
+    fields: () => ({
+      title: { type: GraphQLString },
+      content: { type: GraphQLString },
+      authorId: { type: UUIDType },
+    }),
+  });
+
+  const CreateUserInput = new GraphQLInputObjectType({
+    name: 'CreateUserInput',
+    fields: () => ({
+      name: { type: GraphQLString },
+      balance: { type: GraphQLFloat },
+    }),
+  });
+
+  const CreateProfileInput = new GraphQLInputObjectType({
+    name: 'CreateProfileInput',
+    fields: () => ({
+      isMale: { type: GraphQLBoolean },
+      yearOfBirth: { type: GraphQLInt },
+      memberTypeId: { type: MemberTypeIdEnum },
+      userId: { type: UUIDType },
+    }),
+  });
+
+  const EmptyResponse = new GraphQLScalarType({
+    name: 'EmptyResponse',
+    description: 'Represents an empty response in GraphQL.',
+    serialize(value) {
+      return null;
+    },
+    parseValue(value) {
+      return null;
+    },
+    parseLiteral(ast) {
+      if (ast.kind === Kind.NULL) {
+        // If the literal is NULL, return null
+        return null;
+      }
+      throw new Error('Invalid EmptyResponse scalar literal. Must be NULL.');
+    },
   });
 
   const resolvers = {
@@ -188,6 +236,53 @@ const plugin: FastifyPluginAsyncTypebox = async (fastify) => {
         });
       },
     },
+    Mutation: {
+      createPost: async (_, { dto }, { prisma }) => {
+        const newPost = await prisma.post.create({
+          data: dto,
+        });
+
+        return newPost;
+      },
+      createUser: async (_, { dto }, { prisma }) => {
+        const newUser = await prisma.user.create({
+          data: dto,
+        });
+
+        return newUser;
+      },
+      createProfile: async (_, { dto }, { prisma }) => {
+        const newProfile = await prisma.profile.create({
+          data: dto,
+        });
+
+        return newProfile;
+      },
+      deletePost: async (_, { id }, { prisma }) => {
+        const deletedPost = await prisma.post.delete({
+          where: { id },
+        });
+
+        return null;
+        // return deletedPost;
+      },
+      deleteUser: async (_, { id }, { prisma }) => {
+        const deletedUser = await prisma.user.delete({
+          where: { id },
+        });
+
+        return null;
+        // return deletedUser;
+      },
+      deleteProfile: async (_, { id }, { prisma }) => {
+        const deletedProfile = await prisma.profile.delete({
+          where: { id },
+        });
+
+        return null;
+        // return deletedProfile;
+      },
+    },
   };
 
   const executableSchema = new GraphQLSchema({
@@ -237,6 +332,56 @@ const plugin: FastifyPluginAsyncTypebox = async (fastify) => {
             id: { type: UUIDType },
           },
           resolve: resolvers.Query.profile,
+        },
+      },
+    }),
+    mutation: new GraphQLObjectType({
+      name: 'Mutation',
+      fields: {
+        createPost: {
+          type: Post,
+          args: {
+            dto: { type: CreatePostInput },
+          },
+          resolve: resolvers.Mutation.createPost,
+        },
+        createUser: {
+          type: User,
+          args: {
+            dto: { type: CreateUserInput },
+          },
+          resolve: resolvers.Mutation.createUser,
+        },
+        createProfile: {
+          type: Profile,
+          args: {
+            dto: { type: CreateProfileInput },
+          },
+          resolve: resolvers.Mutation.createProfile,
+        },
+        deletePost: {
+          type: EmptyResponse,
+          // type: Post,
+          args: {
+            id: { type: UUIDType },
+          },
+          resolve: resolvers.Mutation.deletePost,
+        },
+        deleteUser: {
+          type: EmptyResponse,
+          // type: User,
+          args: {
+            id: { type: UUIDType },
+          },
+          resolve: resolvers.Mutation.deleteUser,
+        },
+        deleteProfile: {
+          type: EmptyResponse,
+          // type: Profile,
+          args: {
+            id: { type: UUIDType },
+          },
+          resolve: resolvers.Mutation.deleteProfile,
         },
       },
     }),
