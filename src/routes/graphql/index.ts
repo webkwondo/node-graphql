@@ -140,6 +140,31 @@ const plugin: FastifyPluginAsyncTypebox = async (fastify) => {
     },
   });
 
+  const ChangePostInput = new GraphQLInputObjectType({
+    name: 'ChangePostInput',
+    fields: () => ({
+      title: { type: GraphQLString },
+      content: { type: GraphQLString },
+    }),
+  });
+
+  const ChangeProfileInput = new GraphQLInputObjectType({
+    name: 'ChangeProfileInput',
+    fields: () => ({
+      isMale: { type: GraphQLBoolean },
+      yearOfBirth: { type: GraphQLInt },
+      memberTypeId: { type: MemberTypeIdEnum },
+    }),
+  });
+
+  const ChangeUserInput = new GraphQLInputObjectType({
+    name: 'ChangeUserInput',
+    fields: () => ({
+      name: { type: GraphQLString },
+      balance: { type: GraphQLFloat },
+    }),
+  });
+
   const resolvers = {
     Query: {
       memberTypes: async () => {
@@ -239,48 +264,86 @@ const plugin: FastifyPluginAsyncTypebox = async (fastify) => {
     Mutation: {
       createPost: async (_, { dto }, { prisma }) => {
         const newPost = await prisma.post.create({
-          data: dto,
+          data: { ...dto },
         });
 
         return newPost;
       },
       createUser: async (_, { dto }, { prisma }) => {
         const newUser = await prisma.user.create({
-          data: dto,
+          data: { ...dto },
         });
 
         return newUser;
       },
       createProfile: async (_, { dto }, { prisma }) => {
         const newProfile = await prisma.profile.create({
-          data: dto,
+          data: { ...dto },
         });
 
         return newProfile;
       },
       deletePost: async (_, { id }, { prisma }) => {
-        const deletedPost = await prisma.post.delete({
+        await prisma.post.delete({
           where: { id },
         });
 
         return null;
-        // return deletedPost;
       },
       deleteUser: async (_, { id }, { prisma }) => {
-        const deletedUser = await prisma.user.delete({
+        await prisma.user.delete({
           where: { id },
         });
 
         return null;
-        // return deletedUser;
       },
       deleteProfile: async (_, { id }, { prisma }) => {
-        const deletedProfile = await prisma.profile.delete({
+        await prisma.profile.delete({
           where: { id },
         });
 
         return null;
-        // return deletedProfile;
+      },
+      changePost: async (_, { id, dto }, { prisma }) => {
+        const updatedPost = await prisma.post.update({
+          where: { id },
+          data: { ...dto },
+        });
+
+        return updatedPost;
+      },
+      changeProfile: async (_, { id, dto }, { prisma }) => {
+        const updatedProfile = await prisma.profile.update({
+          where: { id },
+          data: { ...dto },
+        });
+
+        return updatedProfile;
+      },
+      changeUser: async (_, { id, dto }, { prisma }) => {
+        const updatedUser = await prisma.user.update({
+          where: { id },
+          data: { ...dto },
+        });
+
+        return updatedUser;
+      },
+      subscribeTo: async (_, { userId, authorId }, { prisma }) => {
+        const newSubscription = await prisma.subscribersOnAuthors.create({
+          data: {
+            subscriber: { connect: { id: userId } },
+            author: { connect: { id: authorId } },
+          },
+        });
+
+        return newSubscription;
+      },
+      unsubscribeFrom: async (_, { userId, authorId }, { prisma }) => {
+        await prisma.subscribersOnAuthors.delete({
+          where: { subscriberId_authorId: { subscriberId: userId, authorId } },
+        });
+
+        return null;
       },
     },
   };
@@ -361,7 +424,6 @@ const plugin: FastifyPluginAsyncTypebox = async (fastify) => {
         },
         deletePost: {
           type: EmptyResponse,
-          // type: Post,
           args: {
             id: { type: UUIDType },
           },
@@ -369,7 +431,6 @@ const plugin: FastifyPluginAsyncTypebox = async (fastify) => {
         },
         deleteUser: {
           type: EmptyResponse,
-          // type: User,
           args: {
             id: { type: UUIDType },
           },
@@ -377,11 +438,50 @@ const plugin: FastifyPluginAsyncTypebox = async (fastify) => {
         },
         deleteProfile: {
           type: EmptyResponse,
-          // type: Profile,
           args: {
             id: { type: UUIDType },
           },
           resolve: resolvers.Mutation.deleteProfile,
+        },
+        changePost: {
+          type: Post,
+          args: {
+            id: { type: UUIDType },
+            dto: { type: ChangePostInput },
+          },
+          resolve: resolvers.Mutation.changePost,
+        },
+        changeProfile: {
+          type: Profile,
+          args: {
+            id: { type: UUIDType },
+            dto: { type: ChangeProfileInput },
+          },
+          resolve: resolvers.Mutation.changeProfile,
+        },
+        changeUser: {
+          type: User,
+          args: {
+            id: { type: UUIDType },
+            dto: { type: ChangeUserInput },
+          },
+          resolve: resolvers.Mutation.changeUser,
+        },
+        subscribeTo: {
+          type: SubscribersOnAuthors,
+          args: {
+            userId: { type: UUIDType },
+            authorId: { type: UUIDType },
+          },
+          resolve: resolvers.Mutation.subscribeTo,
+        },
+        unsubscribeFrom: {
+          type: EmptyResponse,
+          args: {
+            userId: { type: UUIDType },
+            authorId: { type: UUIDType },
+          },
+          resolve: resolvers.Mutation.unsubscribeFrom,
         },
       },
     }),
